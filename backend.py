@@ -1,8 +1,16 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from pydantic import BaseModel
-from db_interactions import write_notes  # your existing local import
+from db_interactions import get_notes, init_db, write_notes
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await init_db()
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
 
 
 class InputData(BaseModel):
@@ -10,12 +18,17 @@ class InputData(BaseModel):
     note_text: str
 
 
-@app.get("/notes")
-async def writing_note_to_db():
-    return {"notes": []}  # Will work later - wait a min pls
-
-
 @app.post("/notes")
 async def create_note(data: InputData):
-    await write_notes(data.note_text)
-    return {"status": "ok", "note_text": data.note_text}
+
+    await write_notes(note_name=data.note_name, note_text=data.note_text)
+
+    return {"status": "ok"}
+
+
+@app.get("/notes")
+async def get_note():
+
+    notes = await get_notes()
+
+    return notes

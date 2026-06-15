@@ -1,43 +1,32 @@
 import asyncpg
-import asyncio
-from loguru import logger
+
+pool = None
 
 
-passwd = input("Enter Password: ")  # For safety xD
-
-conn = asyncpg.connect(
-    port=5432, host="localhost", user="silletr", password=passwd, database="notes"
-)
-
-
-#  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-async def main():
-    logger.success("Connected to 'notes' DB btw")
-    await conn.fetch(
-        """
-        SELECT * FROM notes
-        """,
+async def init_db():
+    global pool
+    pool = await asyncpg.create_pool(
+        host="localhost", user="silletr", password="Silletr123", database="notes"
     )
-    rows = await conn.fetch("SELECT * FROM notes")
-    print(rows)
-
-    await conn.close()
 
 
-#  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-async def write_notes(note: str):
-    logger.info("Starting writing notes in DB")
-    await conn.execute(
-        """
-            INSERT INTO notes(text)
-            VALUES($1)
-            ON CONFLICT (text) DO NOTHING
+async def get_notes():
+    async with pool.acquire() as conn:
+        return await conn.fetch("SELECT * FROM notes")
+
+
+async def write_notes(note_name: str, note_text: str):
+    async with pool.acquire() as conn:
+        db = await conn.fetchval("SELECT current_database()")
+        print("CONNECTED DB:", db)
+
+        await conn.execute(
+            """
+            INSERT INTO notes(note_name, note_text)
+            VALUES($1, $2)
+            ON CONFLICT (note_name)
+        DO UPDATE SET note_text = EXCLUDED.note_text
             """,
-        note.strip(),
-    )
-    logger.success("As long as I 'now it's added. But I dunno, check it out, ig")
-
-
-#  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-if __name__ == "__main__":
-    asyncio.run(main())
+            note_name,
+            note_text,
+        )
